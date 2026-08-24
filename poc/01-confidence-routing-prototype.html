@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Confidence Routing — a working prototype of the Dex Quality Layer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#14111E;
+  --surface:#1C1828;
+  --surface2:#241F33;
+  --line:#332C46;
+  --line-soft:#2A2439;
+  --amber:#E9B450;
+  --amber-dim:#8A6C2E;
+  --teal:#62D6C4;
+  --coral:#F0705E;
+  --text:#EFEBF5;
+  --muted:#9A91AC;
+  --muted-dim:#6E6682;
+  --sans:'Inter',system-ui,-apple-system,sans-serif;
+  --serif:'Instrument Serif',Georgia,serif;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--ink);
+  color:var(--text);
+  font-family:var(--sans);
+  font-size:16px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+  padding:0 0 80px;
+}
+body::before{
+  content:"";position:fixed;top:-30vh;left:50%;width:120vw;height:90vh;
+  transform:translateX(-50%);
+  background:radial-gradient(ellipse at center,rgba(233,180,80,.06),transparent 62%);
+  pointer-events:none;z-index:0;
+}
+a{color:var(--amber)}
+.wrap{max-width:1080px;margin:0 auto;padding:0 clamp(20px,4vw,48px);position:relative;z-index:1}
+
+header{padding:56px 0 40px;border-bottom:1px solid var(--line-soft)}
+.eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--amber);margin-bottom:18px}
+h1{font-family:var(--serif);font-size:clamp(28px,4vw,42px);line-height:1.15;margin:0 0 16px;font-weight:400;max-width:680px}
+.lede{color:var(--muted);font-size:16px;max-width:600px;margin:0 0 22px;line-height:1.6}
+.lede strong{color:var(--text);font-weight:600}
+.back{font-family:var(--mono);font-size:11.5px;color:var(--muted-dim);text-decoration:none}
+
+.rule-note{
+  font-family:var(--mono);font-size:11.5px;color:var(--muted-dim);
+  border-left:2px solid var(--amber-dim);padding:2px 0 2px 14px;margin-top:6px;
+}
+
+section{padding:44px 0;border-bottom:1px solid var(--line-soft)}
+section:last-of-type{border-bottom:none}
+
+.samples{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:28px}
+.sample-btn{
+  font-family:var(--mono);font-size:12px;letter-spacing:.02em;
+  background:var(--surface);border:1px solid var(--line);color:var(--muted);
+  padding:10px 16px;border-radius:6px;cursor:pointer;transition:all .15s ease;
+}
+.sample-btn:hover{color:var(--text);border-color:var(--muted-dim)}
+.sample-btn.active{color:var(--ink);background:var(--amber);border-color:var(--amber);font-weight:600}
+
+.stage{display:grid;grid-template-columns:1.15fr .85fr;gap:28px}
+@media (max-width:860px){.stage{grid-template-columns:1fr}}
+
+.editor-card{
+  background:var(--surface);border:1px solid var(--line);border-radius:10px;
+  padding:24px;position:relative;
+}
+.editor-label{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted-dim);margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
+#draft{
+  min-height:220px;font-size:15px;line-height:1.75;color:var(--text);
+  outline:none;white-space:pre-wrap;
+}
+#draft[contenteditable]:focus{outline:none}
+.flag{border-bottom:2px dotted var(--coral);cursor:help;position:relative;padding:0 1px;border-radius:2px}
+.flag.f-fact{border-color:var(--coral)}
+.flag.f-spatial{border-color:#F0A45E}
+.flag.f-safety{border-color:var(--coral);background:rgba(240,112,94,.1)}
+.flag.f-pron{border-color:var(--teal)}
+.flag:hover::after,.flag:focus::after{
+  content:attr(data-note);position:absolute;left:0;bottom:calc(100% + 8px);
+  background:var(--ink);border:1px solid var(--line);color:var(--text);
+  font-family:var(--sans);font-size:12.5px;line-height:1.4;
+  padding:9px 12px;border-radius:6px;width:min(280px,60vw);z-index:5;
+  box-shadow:0 8px 24px rgba(0,0,0,.4);
+}
+.editor-foot{display:flex;justify-content:space-between;align-items:center;margin-top:18px;padding-top:16px;border-top:1px solid var(--line-soft)}
+.hint{font-size:12.5px;color:var(--muted-dim)}
+.evaluate-btn{
+  font-family:var(--mono);font-size:12.5px;font-weight:500;letter-spacing:.03em;
+  background:var(--amber);color:var(--ink);border:none;padding:11px 22px;
+  border-radius:6px;cursor:pointer;transition:transform .12s ease,box-shadow .12s ease;
+}
+.evaluate-btn:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(233,180,80,.25)}
+.evaluate-btn:active{transform:translateY(0)}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:24px}
+.panel-label{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted-dim);margin-bottom:18px}
+
+.check{margin-bottom:16px}
+.check-top{display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px}
+.check-name{color:var(--text);font-weight:500}
+.check-score{font-family:var(--mono);color:var(--muted)}
+.bar-track{height:6px;background:var(--line-soft);border-radius:3px;overflow:hidden}
+.bar-fill{height:100%;border-radius:3px;width:0%;transition:width .5s cubic-bezier(.4,0,.2,1),background .3s ease}
+.check.gate .check-name::after{content:" · hard gate";color:var(--muted-dim);font-weight:400;font-size:11px}
+
+.route{
+  margin-top:24px;padding:20px;border-radius:8px;border:1px solid var(--line);
+  transition:border-color .3s ease,background .3s ease;
+}
+.route-tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px;opacity:.85}
+.route-verdict{font-family:var(--serif);font-size:22px;margin-bottom:8px;line-height:1.25}
+.route-why{font-size:13.5px;color:var(--muted);line-height:1.55}
+.route-why strong{color:var(--text)}
+
+.gauge-wrap{margin-top:22px}
+.gauge{position:relative;height:10px;border-radius:5px;overflow:hidden;background:var(--line-soft);display:flex}
+.zone{height:100%}
+.zone.z-full{background:rgba(240,112,94,.35);flex:0 0 60%}
+.zone.z-targeted{background:rgba(233,180,80,.35);flex:0 0 25%}
+.zone.z-auto{background:rgba(98,214,196,.35);flex:0 0 15%}
+.gauge-marker{
+  position:absolute;top:-5px;width:2px;height:20px;background:var(--text);
+  transform:translateX(-1px);transition:left .5s cubic-bezier(.4,0,.2,1);
+  box-shadow:0 0 0 3px var(--ink),0 0 0 4px currentColor;
+}
+.gauge-labels{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--muted-dim);margin-top:8px;letter-spacing:.03em}
+
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-family:var(--mono);font-size:11px;color:var(--muted-dim);margin-top:24px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.dot{width:8px;height:8px;border-radius:50%}
+
+footer{padding:44px 0 0;text-align:center}
+footer p{font-size:13px;color:var(--muted-dim);font-family:var(--mono)}
+footer a{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Companion prototype · Dex Quality Layer</div>
+    <h1>The routing logic, actually running.</h1>
+    <p class="lede">A small working version of the eval → confidence → route flow from the case study. Pick a sample draft or write your own, then evaluate it against the same five checks — and watch the one rule that can't be averaged away.</p>
+    <div class="rule-note">Rule: if the spatial or safety check fails, routing goes straight to full review — no averaging, regardless of the composite score.</div>
+  </header>
+
+  <section>
+    <div class="samples" id="samples">
+      <button class="sample-btn active" data-sample="a">High confidence draft</button>
+      <button class="sample-btn" data-sample="b">Medium confidence draft</button>
+      <button class="sample-btn" data-sample="c">Hard-gate failure</button>
+      <button class="sample-btn" data-sample="custom">Write your own</button>
+    </div>
+
+    <div class="stage">
+      <div class="editor-card">
+        <div class="editor-label"><span>Generated tour draft</span><span id="draftMeta">Chapter 3 of 6</span></div>
+        <div id="draft" contenteditable="true" spellcheck="false"></div>
+        <div class="editor-foot">
+          <span class="hint">Hover a flagged phrase for the reviewer's note</span>
+          <button class="evaluate-btn" id="evalBtn">Evaluate draft</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-label">Rubric</div>
+        <div class="check gate" id="chk-spatial">
+          <div class="check-top"><span class="check-name">Spatial / route</span><span class="check-score">—</span></div>
+          <div class="bar-track"><div class="bar-fill"></div></div>
+        </div>
+        <div class="check" id="chk-factual">
+          <div class="check-top"><span class="check-name">Factual</span><span class="check-score">—</span></div>
+          <div class="bar-track"><div class="bar-fill"></div></div>
+        </div>
+        <div class="check" id="chk-narrative">
+          <div class="check-top"><span class="check-name">Narrative / persona</span><span class="check-score">—</span></div>
+          <div class="bar-track"><div class="bar-fill"></div></div>
+        </div>
+        <div class="check gate" id="chk-safety">
+          <div class="check-top"><span class="check-name">Safety / tone</span><span class="check-score">—</span></div>
+          <div class="bar-track"><div class="bar-fill"></div></div>
+        </div>
+        <div class="check" id="chk-pronunciation">
+          <div class="check-top"><span class="check-name">Pronunciation</span><span class="check-score">—</span></div>
+          <div class="bar-track"><div class="bar-fill"></div></div>
+        </div>
+
+        <div class="gauge-wrap">
+          <div class="gauge">
+            <div class="zone z-full"></div>
+            <div class="zone z-targeted"></div>
+            <div class="zone z-auto"></div>
+            <div class="gauge-marker" id="marker" style="left:0%"></div>
+          </div>
+          <div class="gauge-labels"><span>Full review</span><span>Targeted review</span><span>Auto-publish</span></div>
+        </div>
+
+        <div class="route" id="route">
+          <div class="route-tag" id="routeTag">Awaiting evaluation</div>
+          <div class="route-verdict" id="routeVerdict">—</div>
+          <div class="route-why" id="routeWhy">Press "Evaluate draft" to score this chapter and see where it routes.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span><span class="dot" style="background:var(--coral)"></span>Factual / safety flag</span>
+      <span><span class="dot" style="background:#F0A45E"></span>Spatial flag</span>
+      <span><span class="dot" style="background:var(--teal)"></span>Pronunciation flag</span>
+    </div>
+  </section>
+
+  <footer>
+    <p>Built to accompany the Dex Quality Layer case study — Prathyusha Vedula for Headout · <a href="mailto:vedulaprathyusha99@gmail.com">vedulaprathyusha99@gmail.com</a></p>
+  </footer>
+</div>
+
+<script>
+const SAMPLES = {
+  a: {
+    meta: "Chapter 3 of 6 · Old Town walk",
+    text: `As you round the corner past the fountain, look up — the clock tower has kept time here since the 1850s, and locals still set their watches by its bell. Take the stone steps on your left down toward the harbor; it's a gentle five-minute walk with a handrail the whole way. Once you reach the water, you'll see fishing boats that go out most mornings before sunrise. This is a good spot to pause and listen — the mix of gulls and boat engines is as much a part of this district's character as any building.`,
+    scores: { spatial: 96, factual: 94, narrative: 90, safety: 100, pronunciation: 92 }
+  },
+  b: {
+    meta: "Chapter 3 of 6 · Old Town walk",
+    text: `As you round the corner past the fountain, look up — the clock tower was <span class="flag f-fact" tabindex="0" data-note="Unverified date. No matching claim in the three reference tours for this stop — cross-check before publishing.">built in 1823 by the city's first appointed governor</span>, and locals still set their watches by its bell. Take the stone steps on your left down toward the <span class="flag f-pron" tabindex="0" data-note="Non-English proper noun with no phonetic guide on file. Flag for narrator pronunciation check.">Kutsevska</span> harbor; it's a gentle five-minute walk with a handrail the whole way. Fishing boats have gone out from here <span class="flag f-fact" tabindex="0" data-note="Specific numeric claim not present in source material — likely a model fabrication.">every morning for over 300 years</span>, and this is a good spot to pause and listen to the gulls.`,
+    scores: { spatial: 88, factual: 61, narrative: 82, safety: 100, pronunciation: 75 }
+  },
+  c: {
+    meta: "Chapter 3 of 6 · Old Town walk",
+    text: `As you round the corner past the fountain, <span class="flag f-spatial" tabindex="0" data-note="This path crosses the market square, which has been closed for construction since last month per live map data. Route is not currently walkable.">cut straight through the market square to reach the harbor faster</span>. The clock tower nearby marks where, in 1826, a local uprising was put down — <span class="flag f-safety" tabindex="0" data-note="Tone risk. The draft frames a documented violent event lightly, without the context or care the subject calls for. Route to full review rather than averaging into the confidence score.">the guide script adds a light joke here about how "at least the clock still works,"</span> which sits oddly next to the history. Take the stone steps down toward the water when you're done.`,
+    scores: { spatial: 40, factual: 70, narrative: 65, safety: 55, pronunciation: 80 }
+  },
+  custom: {
+    meta: "Custom draft",
+    text: `Type or paste a tour draft here, then press Evaluate. This mode runs a simple heuristic — it looks for dates and numbers as possible unverified claims, unfamiliar capitalized words as pronunciation risks, and a couple of tone markers — just enough to demonstrate the mechanism, not a real model.`,
+    scores: null
+  }
+};
+
+const draftEl = document.getElementById('draft');
+const draftMeta = document.getElementById('draftMeta');
+const buttons = [...document.querySelectorAll('.sample-btn')];
+let currentSample = 'a';
+
+function loadSample(key){
+  currentSample = key;
+  buttons.forEach(b => b.classList.toggle('active', b.dataset.sample === key));
+  draftEl.innerHTML = SAMPLES[key].text;
+  draftMeta.textContent = SAMPLES[key].meta;
+  draftEl.contentEditable = key === 'custom' ? 'true' : 'true';
+  resetPanel();
+}
+
+function resetPanel(){
+  ['spatial','factual','narrative','safety','pronunciation'].forEach(k=>{
+    const card = document.getElementById('chk-'+k);
+    card.querySelector('.check-score').textContent = '—';
+    card.querySelector('.bar-fill').style.width = '0%';
+    card.querySelector('.bar-fill').style.background = 'var(--muted-dim)';
+  });
+  document.getElementById('marker').style.left = '0%';
+  document.getElementById('route').style.borderColor = 'var(--line)';
+  document.getElementById('routeTag').textContent = 'Awaiting evaluation';
+  document.getElementById('routeTag').style.color = 'var(--muted-dim)';
+  document.getElementById('routeVerdict').textContent = '—';
+  document.getElementById('routeWhy').textContent = 'Press "Evaluate draft" to score this chapter and see where it routes.';
+}
+
+function heuristicScore(text){
+  const plain = text.replace(/<[^>]+>/g,'');
+  const numHits = (plain.match(/\b\d{3,4}\b/g) || []).length;
+  const properNouns = (plain.match(/\b[A-Z][a-z]{3,}\b/g) || []).filter(w => !/^(The|As|You|This|Once|Take|Fishing)$/.test(w)).length;
+  const toneHits = (plain.match(/\bjoke|kidding|hilarious\b/gi) || []).length;
+  const wordCount = plain.split(/\s+/).length;
+
+  const factual = Math.max(40, 100 - numHits*18);
+  const pronunciation = Math.max(50, 100 - Math.max(0,properNouns-2)*10);
+  const safety = toneHits > 0 ? 55 : 98;
+  const spatial = 90;
+  const narrative = wordCount > 20 ? 85 : 60;
+  return { spatial, factual, narrative, safety, pronunciation };
+}
+
+function colorFor(score){
+  if(score >= 85) return 'var(--teal)';
+  if(score >= 60) return 'var(--amber)';
+  return 'var(--coral)';
+}
+
+function evaluate(){
+  const scores = currentSample === 'custom'
+    ? heuristicScore(draftEl.innerHTML)
+    : SAMPLES[currentSample].scores;
+
+  const order = ['spatial','factual','narrative','safety','pronunciation'];
+  order.forEach(k=>{
+    const card = document.getElementById('chk-'+k);
+    const fill = card.querySelector('.bar-fill');
+    const label = card.querySelector('.check-score');
+    requestAnimationFrame(()=>{
+      fill.style.width = scores[k] + '%';
+      fill.style.background = colorFor(scores[k]);
+    });
+    label.textContent = scores[k] + ' / 100';
+  });
+
+  const weights = { spatial:.15, factual:.3, narrative:.25, safety:.15, pronunciation:.15 };
+  const composite = Math.round(order.reduce((sum,k)=> sum + scores[k]*weights[k], 0));
+
+  const hardGateFailed = scores.spatial < 60 || scores.safety < 70;
+  let tier, tierLabel, tierColor, why;
+
+  if(hardGateFailed){
+    tier = 'full';
+    tierLabel = 'Full review — hard gate triggered';
+    tierColor = 'var(--coral)';
+    const failedGate = scores.spatial < 60 ? 'spatial' : 'safety';
+    why = `<strong>Composite score is ${composite}, but it doesn't matter.</strong> The ${failedGate} check failed on its own, so this draft routes straight to full review — that failure is never averaged into a higher confidence number.`;
+  } else if(composite >= 85){
+    tier = 'auto';
+    tierLabel = 'Auto-publish';
+    tierColor = 'var(--teal)';
+    why = `<strong>Composite score: ${composite}.</strong> No gate failures, all checks in range. Publishes automatically, with post-hoc sampling to catch drift.`;
+  } else if(composite >= 60){
+    tier = 'targeted';
+    tierLabel = 'Targeted review';
+    tierColor = 'var(--amber)';
+    const weakest = order.reduce((a,b)=> scores[a] < scores[b] ? a : b);
+    why = `<strong>Composite score: ${composite}.</strong> Good enough to skip a full pass, but the ${weakest} check is soft. A producer sees only the flagged phrases above, not the whole chapter.`;
+  } else {
+    tier = 'full';
+    tierLabel = 'Full review';
+    tierColor = 'var(--coral)';
+    why = `<strong>Composite score: ${composite}.</strong> Below the targeted-review threshold — treated as a draft, full producer pass.`;
+  }
+
+  const markerPos = Math.min(98, Math.max(1, composite));
+  const marker = document.getElementById('marker');
+  marker.style.left = markerPos + '%';
+  marker.style.color = tierColor;
+
+  const route = document.getElementById('route');
+  route.style.borderColor = tierColor;
+  document.getElementById('routeTag').textContent = hardGateFailed ? 'Hard gate' : 'Confidence routing';
+  document.getElementById('routeTag').style.color = tierColor;
+  document.getElementById('routeVerdict').textContent = tierLabel;
+  document.getElementById('routeVerdict').style.color = tierColor;
+  document.getElementById('routeWhy').innerHTML = why;
+}
+
+buttons.forEach(b => b.addEventListener('click', ()=> loadSample(b.dataset.sample)));
+document.getElementById('evalBtn').addEventListener('click', evaluate);
+
+loadSample('a');
+</script>
+</body>
+</html>

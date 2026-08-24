@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dex Publish Gate — full eval engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#14111E; --surface:#1C1828; --surface2:#241F33;
+  --line:#332C46; --line-soft:#2A2439;
+  --amber:#E9B450; --amber-dim:#8A6C2E;
+  --teal:#62D6C4; --coral:#F0705E;
+  --text:#EFEBF5; --muted:#9A91AC; --muted-dim:#6E6682;
+  --sans:'Inter',system-ui,sans-serif; --serif:'Instrument Serif',Georgia,serif; --mono:'JetBrains Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ink);color:var(--text);font-family:var(--sans);font-size:15.5px;line-height:1.6;-webkit-font-smoothing:antialiased;padding:0 0 80px}
+body::before{content:"";position:fixed;top:-30vh;left:50%;width:120vw;height:90vh;transform:translateX(-50%);background:radial-gradient(ellipse at center,rgba(233,180,80,.06),transparent 62%);pointer-events:none;z-index:0}
+.wrap{max-width:960px;margin:0 auto;padding:0 clamp(18px,4vw,44px);position:relative;z-index:1}
+
+header{padding:46px 0 26px;border-bottom:1px solid var(--line-soft)}
+.eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--amber);margin-bottom:16px}
+h1{font-family:var(--serif);font-size:clamp(25px,3.4vw,36px);line-height:1.15;margin:0 0 12px;font-weight:400;max-width:680px}
+.lede{color:var(--muted);font-size:15px;max-width:660px;margin:0 0 6px;line-height:1.6}
+.scope-note{font-family:var(--mono);font-size:11.5px;color:var(--muted-dim);margin-top:14px;border-left:2px solid var(--amber-dim);padding-left:12px}
+
+section{padding:30px 0}
+.input-card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:22px}
+.samples{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.sample-btn{font-family:var(--mono);font-size:11px;background:var(--surface2);border:1px solid var(--line);color:var(--muted);padding:8px 13px;border-radius:6px;cursor:pointer}
+.sample-btn:hover{color:var(--text);border-color:var(--muted-dim)}
+#transcriptInput{width:100%;min-height:150px;background:var(--surface2);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--sans);font-size:14.5px;padding:14px;resize:vertical}
+#transcriptInput:focus{outline:1px solid var(--amber)}
+.run-row{display:flex;justify-content:space-between;align-items:center;margin-top:14px;gap:12px;flex-wrap:wrap}
+.run-hint{font-size:12px;color:var(--muted-dim)}
+.run-btn{font-family:var(--mono);font-size:12.5px;font-weight:600;background:var(--amber);color:var(--ink);border:none;padding:12px 24px;border-radius:6px;cursor:pointer}
+.run-btn:disabled{opacity:.5;cursor:default}
+
+.progress{margin-top:18px;display:none}
+.progress.show{display:block}
+.prog-row{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12px;color:var(--muted-dim);padding:6px 0}
+.prog-row.done{color:var(--teal)}
+.prog-row.running{color:var(--amber)}
+.spinner{width:11px;height:11px;border:2px solid var(--muted-dim);border-top-color:var(--amber);border-radius:50%;animation:spin .7s linear infinite;flex:0 0 auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+.dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto}
+
+.report{display:none;margin-top:10px}
+.report.show{display:block}
+.decision-banner{border-radius:10px;padding:20px 24px;border:1px solid;margin-bottom:22px}
+.decision-banner.auto{border-color:var(--teal);background:rgba(98,214,196,.06)}
+.decision-banner.targeted{border-color:var(--amber);background:rgba(233,180,80,.06)}
+.decision-banner.full{border-color:var(--coral);background:rgba(240,112,94,.06)}
+.db-label{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px}
+.db-verdict{font-family:var(--serif);font-size:24px}
+.db-summary{font-size:13.5px;color:var(--muted);margin-top:8px}
+
+.cluster-card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px 22px;margin-bottom:12px}
+.cc-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.cc-name{font-weight:500}
+.cc-verdict{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;padding:5px 12px;border-radius:14px;border:1px solid}
+.cc-verdict.pass{color:var(--teal);border-color:var(--teal)}
+.cc-verdict.flag{color:var(--amber);border-color:var(--amber)}
+.cc-verdict.fail{color:var(--coral);border-color:var(--coral)}
+.cc-verdict.skipped{color:var(--muted-dim);border-color:var(--line)}
+.cc-span{font-size:13.5px;background:rgba(240,112,94,.08);border-left:2px solid var(--coral);padding:8px 12px;border-radius:4px;margin:8px 0;color:var(--muted)}
+.cc-reason{font-size:13.5px;color:var(--muted)}
+.cc-fix{font-size:13px;color:var(--teal);margin-top:8px;padding-top:8px;border-top:1px solid var(--line-soft)}
+.cc-method{font-family:var(--mono);font-size:10px;color:var(--muted-dim);margin-top:2px}
+
+.copy-row{margin-top:18px;text-align:right}
+.copy-btn{font-family:var(--mono);font-size:11.5px;background:none;border:1px solid var(--line);color:var(--muted);padding:8px 14px;border-radius:6px;cursor:pointer}
+.copy-btn:hover{color:var(--text)}
+
+.note{font-size:12px;color:var(--muted-dim);margin-top:26px;font-family:var(--mono);line-height:1.7}
+footer{padding:44px 0 0;text-align:center}
+footer p{font-size:12.5px;color:var(--muted-dim);font-family:var(--mono)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Working POC · Dex Publish Gate — full eval engine</div>
+    <h1>Paste a transcript. See exactly what the gate does with it.</h1>
+    <p class="lede">Runs the deterministic pre-filters, then four parallel LLM-as-judge calls — one per applicable cluster — and aggregates them into one routing decision with reasons and suggested fixes.</p>
+    <div class="scope-note">Scope: transcript/narration only. Covers Cluster 1 (language &amp; tone), the text portions of Clusters 2 and 3 (spoken PII, defamation/promotion/recited copyright), and Cluster 4 (opinion vs. fact). Route safety, accessibility, and anything photo-based aren't text problems — they need a maps API and computer vision respectively, not a language judge, and aren't part of this engine.</div>
+  </header>
+
+  <section>
+    <div class="input-card">
+      <div class="samples" id="samples"></div>
+      <textarea id="transcriptInput" placeholder="Paste a transcript or narration chapter here..."></textarea>
+      <div class="run-row">
+        <span class="run-hint">Runs one deterministic pass, then up to 4 live model calls in parallel.</span>
+        <button class="run-btn" id="runBtn">Run full eval</button>
+      </div>
+      <div class="progress" id="progress"></div>
+    </div>
+
+    <div class="report" id="report"></div>
+  </section>
+
+  <footer><p>Dex Publish Gate — eval engine POC · Prathyusha Vedula for Headout</p></footer>
+</div>
+
+<script>
+const SAMPLES = {
+  clean: `This courtyard has stood largely unchanged since the 1890s. Many locals consider it one of the most peaceful spots in the old town, especially early in the morning before the market opens.`,
+  tone: `This courtyard was the site of a fire in 1891 that killed several workers — a genuinely difficult moment in the building's history. Though if you ask around, the ghost tour version of this stop is honestly more fun than the real one.`,
+  pii: `The food stall on your left is run by a guy named Marco — he's been here thirty years. If you ever want to order ahead, his number's on the awning, it's 555-2938.`,
+  defamation: `The restaurant across the square, Trattoria Nova, has been quietly ripping off tourists for years with fake "market price" seafood — everyone locally knows to avoid it.`,
+  opinion: `This is, without any question, the single best view in the entire country, better than anywhere else you'll ever stand.`
+};
+
+document.getElementById('samples').innerHTML = `
+  <button class="sample-btn" data-s="clean">Load: clean example</button>
+  <button class="sample-btn" data-s="tone">Load: tone drift</button>
+  <button class="sample-btn" data-s="pii">Load: spoken PII</button>
+  <button class="sample-btn" data-s="defamation">Load: defamation risk</button>
+  <button class="sample-btn" data-s="opinion">Load: opinion as fact</button>
+`;
+document.querySelectorAll('.sample-btn').forEach(b => b.addEventListener('click', () => {
+  document.getElementById('transcriptInput').value = SAMPLES[b.dataset.s];
+}));
+
+// ---- Deterministic pre-filters ----
+// Production would use a maintained, larger list of explicit slurs/profanity.
+// Not reproduced in full here — same reasoning as the design docs: the list
+// itself isn't useful to show, and publishing it risks becoming a lookup
+// table for evasion. A small representative set stands in for the demo.
+const BLOCKLIST = ['idiot', 'stupid', 'damn', 'hell'];
+const PHONE_PATTERN = /\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b/;
+
+function deterministicLanguageCheck(text){
+  const lower = text.toLowerCase();
+  for(const term of BLOCKLIST){
+    if(lower.includes(term)) return { verdict: 'fail', matched: term };
+  }
+  return null; // no match — proceed to judge
+}
+
+function deterministicPIICheck(text){
+  const match = text.match(PHONE_PATTERN);
+  if(match) return { verdict: 'fail', matched: match[0] };
+  return null; // no unambiguous match — proceed to judge for nuance
+}
+
+// ---- Cluster definitions: rubric + few-shot, as actual prompt text ----
+const CLUSTERS = [
+  {
+    key: 'language_tone',
+    name: 'Language & tone',
+    deterministic: deterministicLanguageCheck,
+    softOnly: false,
+    prompt: (text) => `You are a content-safety evaluator for tour narration scripts. Apply this rubric exactly:
+PASS: no profanity, slurs, or content trivializing a sensitive/tragic subject.
+FLAG: borderline tone - a joke or casual phrasing near a sensitive topic that isn't clearly hostile but reads as tasteless.
+FAIL: slurs, discriminatory language, or content that trivializes violence, tragedy, or a protected group.
+
+Examples:
+- "The battle claimed hundreds of lives, and the field remains a memorial today." -> PASS
+- "At least the clock still works, right?" (said right after describing an uprising being put down) -> FLAG
+- Text containing a slur or discriminatory language about a group -> FAIL
+
+Return ONLY JSON, no markdown fences: {"verdict":"pass|flag|fail","span":"exact triggering substring or empty string","reason":"one sentence","suggested_fix":"a rewritten version of the flagged span that fixes the issue, or empty string if pass"}
+
+Text to evaluate:
+${text}`
+  },
+  {
+    key: 'privacy',
+    name: 'Privacy & identifiability',
+    deterministic: deterministicPIICheck,
+    softOnly: false,
+    prompt: (text) => `You are a content-safety evaluator checking for third-party privacy exposure in tour narration. Apply this rubric exactly:
+PASS: no private contact details or sensitive personal information about an identifiable third party.
+FLAG: a real bystander is named or described in a way that's mildly identifying but not a clear privacy exposure.
+FAIL: a real, identifiable third party's contact info (phone, address) or sensitive personal detail is spoken aloud.
+
+Examples:
+- "This building was designed by architect Jane Smith in 1920." -> PASS (public historical figure, professional context)
+- "The guy who runs the food stall, Marco, has been here 30 years." -> FLAG (names a real bystander, borderline)
+- "Marco's number is 555-2938 if you want to order ahead." -> FAIL (identifiable private contact info)
+
+Return ONLY JSON, no markdown fences: {"verdict":"pass|flag|fail","span":"exact triggering substring or empty string","reason":"one sentence","suggested_fix":"a rewritten version that removes the exposure, or empty string if pass"}
+
+Text to evaluate:
+${text}`
+  },
+  {
+    key: 'legal',
+    name: 'Legal & rights',
+    deterministic: null,
+    softOnly: false,
+    prompt: (text) => `You are a content-safety evaluator checking tour narration for legal/reputational risk. Apply this rubric exactly (text only - ignore anything about photography or physical locations):
+PASS: no unverified damaging claims about identifiable businesses/people stated as fact, no undisclosed promotion, no recited copyrighted passages.
+FLAG: a promotional mention without clear disclosure, or a negative claim that's hedged as opinion rather than fact.
+FAIL: a damaging claim about an identifiable business/person stated as objective fact, or a substantial recited copyrighted passage (lyrics, published text).
+
+Examples:
+- "Some visitors say the service here can be slow." -> PASS (hedged, mild)
+- "My favorite place to eat nearby is the bakery on the corner." -> FLAG (promotional, undisclosed, but framed as personal opinion)
+- "Trattoria Nova has been ripping off tourists for years." -> FAIL (damaging claim stated as fact about a named business)
+
+Return ONLY JSON, no markdown fences: {"verdict":"pass|flag|fail","span":"exact triggering substring or empty string","reason":"one sentence","suggested_fix":"a rewritten version that resolves the risk, or empty string if pass"}
+
+Text to evaluate:
+${text}`
+  },
+  {
+    key: 'trust',
+    name: 'Trust & misrepresentation',
+    deterministic: null,
+    softOnly: true,
+    prompt: (text) => `You are a content-safety evaluator checking tour narration for unhedged absolute claims presented as objective fact. This is a lightweight check, NOT fact-verification - you are not checking whether a claim is true, only whether subjective claims are appropriately hedged. Apply this rubric exactly:
+PASS: subjective/opinion claims are framed as such (e.g. "many consider", "some say", "in my opinion").
+FLAG: an absolute, unhedged claim presented as objective fact where it's clearly a matter of opinion (e.g. "the best in the world", "definitely haunted").
+There is no FAIL tier for this check - only pass or flag.
+
+Examples:
+- "Many locals consider this the best view in the city." -> PASS
+- "This is, without question, the best view in the entire country." -> FLAG
+
+Return ONLY JSON, no markdown fences: {"verdict":"pass|flag","span":"exact triggering substring or empty string","reason":"one sentence","suggested_fix":"a rewritten, appropriately hedged version, or empty string if pass"}
+
+Text to evaluate:
+${text}`
+  }
+];
+
+async function callJudge(prompt){
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 300, messages: [{ role: "user", content: prompt }] })
+  });
+  const data = await response.json();
+  const raw = (data.content || []).map(b => b.text || '').join('').trim();
+  const clean = raw.replace(/```json|```/g, '').trim();
+  return JSON.parse(clean);
+}
+
+function setProgress(key, state){
+  const row = document.getElementById('prog-' + key);
+  if(!row) return;
+  row.className = 'prog-row ' + state;
+  const icon = row.querySelector('.icon');
+  if(state === 'running') icon.outerHTML = '<span class="icon spinner"></span>';
+  else if(state === 'done') icon.outerHTML = '<span class="icon dot" style="background:var(--teal)"></span>';
+  else if(state === 'skipped') icon.outerHTML = '<span class="icon dot" style="background:var(--muted-dim)"></span>';
+}
+
+document.getElementById('runBtn').addEventListener('click', async () => {
+  const text = document.getElementById('transcriptInput').value.trim();
+  if(!text) return;
+  const btn = document.getElementById('runBtn');
+  const progress = document.getElementById('progress');
+  const report = document.getElementById('report');
+  btn.disabled = true;
+  report.classList.remove('show');
+  progress.classList.add('show');
+  progress.innerHTML = CLUSTERS.map(c => `<div class="prog-row" id="prog-${c.key}"><span class="icon dot" style="background:var(--line)"></span>${c.name}</div>`).join('');
+
+  const results = await Promise.all(CLUSTERS.map(async (cluster) => {
+    setProgress(cluster.key, 'running');
+    if(cluster.deterministic){
+      const det = cluster.deterministic(text);
+      if(det){
+        setProgress(cluster.key, 'done');
+        return { key: cluster.key, name: cluster.name, verdict: det.verdict, span: det.matched, reason: `Deterministic match on "${det.matched}" — hard fail, no judge call needed.`, suggested_fix: '', method: 'Deterministic filter (short-circuited)' };
+      }
+    }
+    try{
+      const verdict = await callJudge(cluster.prompt(text));
+      setProgress(cluster.key, 'done');
+      return { key: cluster.key, name: cluster.name, ...verdict, method: 'LLM-as-judge' + (cluster.deterministic ? ' (deterministic pre-filter passed)' : '') };
+    } catch(err){
+      setProgress(cluster.key, 'done');
+      return { key: cluster.key, name: cluster.name, verdict: 'fail', span: '', reason: 'Judge call failed or returned unparseable output — failing safe to hold for review rather than silently passing.', suggested_fix: '', method: 'Error → fail-safe' };
+    }
+  }));
+
+  renderReport(results);
+  btn.disabled = false;
+});
+
+function renderReport(results){
+  const anyFail = results.some(r => r.verdict === 'fail');
+  const anyFlag = results.some(r => r.verdict === 'flag');
+  const decision = anyFail ? 'full' : anyFlag ? 'targeted' : 'auto';
+  const labels = { auto: ['Auto-publish', 'No issues found across any applicable cluster.'], targeted: ['Targeted review', 'One or more soft flags — held for a reviewer, not a hard block.'], full: ['Full review', 'A hard fail was found — this cannot be averaged away, held regardless of other clusters.'] };
+
+  let html = `<div class="decision-banner ${decision}">
+    <div class="db-label">Aggregate routing decision</div>
+    <div class="db-verdict">${labels[decision][0]}</div>
+    <div class="db-summary">${labels[decision][1]}</div>
+  </div>`;
+
+  results.forEach(r => {
+    html += `<div class="cluster-card">
+      <div class="cc-top"><span class="cc-name">${r.name}</span><span class="cc-verdict ${r.verdict}">${r.verdict}</span></div>
+      ${r.span ? `<div class="cc-span">"${r.span}"</div>` : ''}
+      <div class="cc-reason">${r.reason || ''}</div>
+      ${r.suggested_fix ? `<div class="cc-fix"><b>Suggested fix:</b> ${r.suggested_fix}</div>` : ''}
+      <div class="cc-method">${r.method}</div>
+    </div>`;
+  });
+
+  html += `<div class="copy-row"><button class="copy-btn" id="copyBtn">Copy report as text</button></div>`;
+
+  const report = document.getElementById('report');
+  report.innerHTML = html;
+  report.classList.add('show');
+
+  document.getElementById('copyBtn').addEventListener('click', () => {
+    const lines = [`Aggregate decision: ${labels[decision][0]}`, ''];
+    results.forEach(r => {
+      lines.push(`${r.name}: ${r.verdict.toUpperCase()}`);
+      if(r.span) lines.push(`  Span: "${r.span}"`);
+      if(r.reason) lines.push(`  Reason: ${r.reason}`);
+      if(r.suggested_fix) lines.push(`  Suggested fix: ${r.suggested_fix}`);
+      lines.push('');
+    });
+    navigator.clipboard.writeText(lines.join('\n'));
+    document.getElementById('copyBtn').textContent = 'Copied';
+    setTimeout(() => { document.getElementById('copyBtn').textContent = 'Copy report as text'; }, 1500);
+  });
+}
+</script>
+</body>
+</html>

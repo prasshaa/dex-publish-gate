@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dex Publish Gate — working POC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#14111E; --surface:#1C1828; --surface2:#241F33;
+  --line:#332C46; --line-soft:#2A2439;
+  --amber:#E9B450; --amber-dim:#8A6C2E;
+  --teal:#62D6C4; --coral:#F0705E;
+  --text:#EFEBF5; --muted:#9A91AC; --muted-dim:#6E6682;
+  --sans:'Inter',system-ui,sans-serif; --serif:'Instrument Serif',Georgia,serif; --mono:'JetBrains Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ink);color:var(--text);font-family:var(--sans);font-size:15.5px;line-height:1.6;-webkit-font-smoothing:antialiased;padding:0 0 80px}
+body::before{content:"";position:fixed;top:-30vh;left:50%;width:120vw;height:90vh;transform:translateX(-50%);background:radial-gradient(ellipse at center,rgba(233,180,80,.06),transparent 62%);pointer-events:none;z-index:0}
+.wrap{max-width:1120px;margin:0 auto;padding:0 clamp(18px,4vw,44px);position:relative;z-index:1}
+a{color:var(--amber)}
+
+header{padding:46px 0 28px;border-bottom:1px solid var(--line-soft)}
+.eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--amber);margin-bottom:16px}
+h1{font-family:var(--serif);font-size:clamp(26px,3.6vw,38px);line-height:1.15;margin:0 0 14px;font-weight:400;max-width:680px}
+.lede{color:var(--muted);font-size:15.5px;max-width:640px;margin:0;line-height:1.6}
+
+.tabs{display:flex;gap:6px;margin:26px 0 0;border-bottom:1px solid var(--line-soft)}
+.tab{font-family:var(--mono);font-size:12.5px;letter-spacing:.02em;background:none;border:none;color:var(--muted-dim);padding:12px 18px;cursor:pointer;border-bottom:2px solid transparent;transition:color .15s ease}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--amber);border-bottom-color:var(--amber)}
+
+.view{display:none;padding:36px 0}
+.view.active{display:block}
+
+/* ---- Contributor view ---- */
+.tour-picker{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px}
+.tour-btn{font-family:var(--mono);font-size:11.5px;background:var(--surface);border:1px solid var(--line);color:var(--muted);padding:9px 14px;border-radius:6px;cursor:pointer;transition:all .15s ease}
+.tour-btn:hover{color:var(--text)}
+.tour-btn.active{background:var(--amber);color:var(--ink);border-color:var(--amber);font-weight:600}
+
+.tour-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:22px;flex-wrap:wrap}
+.tour-title{font-family:var(--serif);font-size:24px}
+.decision-pill{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:7px 14px;border-radius:20px;border:1px solid;white-space:nowrap}
+.decision-pill.auto{color:var(--teal);border-color:var(--teal);background:rgba(98,214,196,.08)}
+.decision-pill.targeted{color:var(--amber);border-color:var(--amber);background:rgba(233,180,80,.08)}
+.decision-pill.full{color:var(--coral);border-color:var(--coral);background:rgba(240,112,94,.08)}
+
+.chapter{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:20px 22px;margin-bottom:14px}
+.chapter.has-issue{border-color:var(--line)}
+.chapter-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.chapter-name{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted-dim)}
+.chapter-text{font-size:15px;line-height:1.7}
+.flag-span{border-bottom:2px dotted var(--coral);background:rgba(240,112,94,.08);padding:0 1px;border-radius:2px}
+.flag-note{margin-top:14px;padding:12px 14px;background:var(--surface2);border-left:2px solid var(--coral);border-radius:4px;font-size:13px;color:var(--muted)}
+.flag-note b{color:var(--text)}
+.cluster-tag{font-family:var(--mono);font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--coral);margin-right:8px}
+.clean-tag{font-family:var(--mono);font-size:10.5px;color:var(--muted-dim)}
+
+.route-block{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px 22px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:16px}
+.route-block.fail{border-color:rgba(240,112,94,.4)}
+.route-label{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted-dim)}
+
+/* ---- Reviewer view ---- */
+.queue-list{display:flex;flex-direction:column;gap:10px}
+.queue-item{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;gap:16px;cursor:pointer;transition:border-color .15s ease}
+.queue-item:hover{border-color:var(--muted-dim)}
+.queue-item.resolved{opacity:.45}
+.qi-left{display:flex;align-items:center;gap:14px}
+.qi-title{font-weight:500}
+.qi-meta{font-family:var(--mono);font-size:11px;color:var(--muted-dim);margin-top:3px}
+.qi-status{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;padding:5px 11px;border-radius:14px;border:1px solid}
+.qi-status.targeted{color:var(--amber);border-color:var(--amber)}
+.qi-status.full{color:var(--coral);border-color:var(--coral)}
+.qi-status.resolved-ok{color:var(--teal);border-color:var(--teal)}
+.qi-status.resolved-no{color:var(--muted-dim);border-color:var(--line)}
+
+.reviewer-detail{margin-top:22px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:24px;display:none}
+.reviewer-detail.open{display:block}
+.rd-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px;padding-top:18px;border-top:1px solid var(--line-soft)}
+.rd-btn{font-family:var(--mono);font-size:12px;padding:10px 16px;border-radius:6px;border:1px solid var(--line);background:var(--surface2);color:var(--text);cursor:pointer;transition:all .15s ease}
+.rd-btn:hover{border-color:var(--muted-dim)}
+.rd-btn.primary{background:var(--teal);color:var(--ink);border-color:var(--teal);font-weight:600}
+.rd-btn.danger{color:var(--coral);border-color:rgba(240,112,94,.4)}
+.rd-btn.warn{color:var(--amber);border-color:rgba(233,180,80,.4)}
+
+/* ---- Live judge view ---- */
+.live-card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:24px}
+.live-label{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted-dim);margin-bottom:14px}
+#liveInput{width:100%;min-height:110px;background:var(--surface2);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--sans);font-size:14.5px;padding:14px;resize:vertical}
+#liveInput:focus{outline:1px solid var(--amber)}
+.live-foot{display:flex;justify-content:space-between;align-items:center;margin-top:14px;gap:12px;flex-wrap:wrap}
+.live-hint{font-size:12.5px;color:var(--muted-dim)}
+.live-btn{font-family:var(--mono);font-size:12.5px;font-weight:600;background:var(--amber);color:var(--ink);border:none;padding:11px 22px;border-radius:6px;cursor:pointer}
+.live-btn:disabled{opacity:.5;cursor:default}
+.live-result{margin-top:18px;padding:16px 18px;border-radius:8px;border:1px solid var(--line);display:none}
+.live-result.show{display:block}
+.live-verdict{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px}
+.live-reason{font-size:14px;color:var(--muted)}
+.spinner{display:inline-block;width:13px;height:13px;border:2px solid var(--muted-dim);border-top-color:var(--amber);border-radius:50%;animation:spin .7s linear infinite;margin-right:8px;vertical-align:-2px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.note{font-size:12.5px;color:var(--muted-dim);margin-top:22px;font-family:var(--mono);line-height:1.6}
+footer{padding:44px 0 0;text-align:center}
+footer p{font-size:12.5px;color:var(--muted-dim);font-family:var(--mono)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Working POC · Dex Publish Gate</div>
+    <h1>Six checks, one decision, before anything reaches a guest.</h1>
+    <p class="lede">A functioning version of the gate designed across the discovery notes, rubric, and architecture docs. Three views: what a contributor sees, what a reviewer works from, and a live check you can run on your own text.</p>
+    <div class="tabs">
+      <button class="tab active" data-view="contrib">Contributor view</button>
+      <button class="tab" data-view="review">Reviewer queue</button>
+      <button class="tab" data-view="live">Try the language check, live</button>
+    </div>
+  </header>
+
+  <!-- CONTRIBUTOR VIEW -->
+  <div class="view active" id="view-contrib">
+    <div class="tour-picker" id="tourPicker"></div>
+    <div id="tourContent"></div>
+  </div>
+
+  <!-- REVIEWER VIEW -->
+  <div class="view" id="view-review">
+    <div class="queue-list" id="queueList"></div>
+    <div class="reviewer-detail" id="reviewerDetail"></div>
+  </div>
+
+  <!-- LIVE JUDGE VIEW -->
+  <div class="view" id="view-live">
+    <div class="live-card">
+      <div class="live-label">Cluster 1 · Language &amp; tone — live LLM judge</div>
+      <textarea id="liveInput" placeholder="Write or paste a chapter of tour narration here, then run the check. Try something borderline — a joke near a sensitive topic — to see a flag, not just a clean pass.">The old fort saw a brutal siege in 1804 — but don't worry, the gift shop's much friendlier these days.</textarea>
+      <div class="live-foot">
+        <span class="live-hint">Sends your text to the actual Cluster 1 rubric from the design doc — this is a real model call, not a canned response.</span>
+        <button class="live-btn" id="liveBtn">Run check</button>
+      </div>
+      <div class="live-result" id="liveResult">
+        <div class="live-verdict" id="liveVerdict"></div>
+        <div class="live-reason" id="liveReason"></div>
+      </div>
+    </div>
+    <p class="note">This is the only panel making a live model call. The other two views run on realistic pre-computed examples so the full contributor → gate → reviewer flow is visible without needing six live checks to complete for every sample.</p>
+  </div>
+
+  <footer><p>Dex Publish Gate — POC · Prathyusha Vedula for Headout</p></footer>
+</div>
+
+<script>
+const TOURS = {
+  clean: {
+    label: "Auto-publish",
+    title: "Riverside Walk",
+    decision: "auto",
+    route: { verdict: "pass", note: "Fully walkable public route, no known closures." },
+    chapters: [
+      { name: "The Old Bridge", text: "As you cross the bridge, notice the worn stone at its center — generations of foot traffic have smoothed it into a gentle dip. The bridge has stood since 1780 and still carries the town's main foot route.", flag: null },
+      { name: "The Riverbank", text: "Fishing boats still go out most mornings before sunrise. Take a moment here — the mix of gulls and boat engines is part of what makes this stretch of river feel alive.", flag: null }
+    ]
+  },
+  targeted: {
+    label: "Targeted review",
+    title: "Old Town Market",
+    decision: "targeted",
+    route: { verdict: "pass", note: "Route verified walkable." },
+    chapters: [
+      { name: "The Market Gate", text: "The gate you're standing under has marked the market's entrance for over two centuries. Vendors still set up before dawn, just as they always have.", flag: null },
+      { name: "The Fountain Square", text: "This fountain was the site of a difficult chapter in the town's history — but honestly, the pigeons here are the real main characters now.",
+        flag: { cluster: "Language & tone", span: "the pigeons here are the real main characters now", reason: "Undercuts a serious historical reference with a dismissive joke immediately after — borderline tone, not a hard violation." } }
+    ]
+  },
+  full_language: {
+    label: "Full review — language",
+    title: "Harbor District",
+    decision: "full",
+    route: { verdict: "pass", note: "Route verified walkable." },
+    chapters: [
+      { name: "The Old Warehouse", text: "This warehouse once processed goods from across the region, and its brick facade is largely original.", flag: null },
+      { name: "The Memorial Wall", text: "The names on this wall belong to workers who died here in an accident the company always tried to laugh off as bad luck, which honestly still tracks given how cheap they were.",
+        flag: { cluster: "Language & tone", span: "which honestly still tracks given how cheap they were", reason: "Trivializes worker deaths with a dismissive, mocking framing rather than treating the subject with appropriate gravity.", hard: true } }
+    ]
+  },
+  full_spatial: {
+    label: "Full review — route",
+    title: "Market Square Loop",
+    decision: "full",
+    route: { verdict: "fail", note: "Route crosses the market square, which has been closed for construction since last month per live map data. Not currently walkable." },
+    chapters: [
+      { name: "The Square Crossing", text: "Cut straight through the square to save a few minutes — it's usually the quickest way to the next stop.", flag: null },
+      { name: "The Old Well", text: "This well supplied the district with water well into the last century, long after most of the town had moved on to plumbing.", flag: null }
+    ]
+  }
+};
+
+const DECISION_LABEL = { auto: ["Auto-publish","auto"], targeted: ["Targeted review","targeted"], full: ["Full review","full"] };
+
+function renderTourPicker(){
+  const el = document.getElementById('tourPicker');
+  el.innerHTML = Object.entries(TOURS).map(([key,t]) =>
+    `<button class="tour-btn${key==='clean'?' active':''}" data-tour="${key}">${t.label}</button>`
+  ).join('');
+  el.querySelectorAll('.tour-btn').forEach(b => b.addEventListener('click', () => {
+    el.querySelectorAll('.tour-btn').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    renderTour(b.dataset.tour);
+  }));
+}
+
+function renderTour(key){
+  const t = TOURS[key];
+  const [label, cls] = DECISION_LABEL[t.decision];
+  let html = `<div class="tour-header"><div class="tour-title">${t.title}</div><div class="decision-pill ${cls}">${label}</div></div>`;
+
+  html += `<div class="route-block${t.route.verdict==='fail' ? ' fail':''}">
+    <div><div class="route-label">Spatial &amp; physical safety</div><div style="margin-top:6px;font-size:14px;color:${t.route.verdict==='fail'?'var(--coral)':'var(--muted)'}">${t.route.note}</div></div>
+  </div>`;
+
+  t.chapters.forEach(ch => {
+    html += `<div class="chapter${ch.flag?' has-issue':''}">
+      <div class="chapter-top"><span class="chapter-name">${ch.name}</span>${ch.flag ? `<span class="${ch.flag.hard?'cluster-tag':'clean-tag'}" style="color:${ch.flag.hard?'var(--coral)':'var(--amber)'}">${ch.flag.hard?'Hard fail':'Flagged'} · ${ch.flag.cluster}</span>` : '<span class="clean-tag">Clean</span>'}</div>
+      <div class="chapter-text">${ch.flag ? ch.text.replace(ch.flag.span, `<span class="flag-span">${ch.flag.span}</span>`) : ch.text}</div>
+      ${ch.flag ? `<div class="flag-note"><b>${ch.flag.cluster}:</b> ${ch.flag.reason}</div>` : ''}
+    </div>`;
+  });
+
+  document.getElementById('tourContent').innerHTML = html;
+}
+
+// ---- Reviewer queue ----
+const queueState = {};
+function renderQueue(){
+  const held = Object.entries(TOURS).filter(([,t]) => t.decision !== 'auto');
+  const el = document.getElementById('queueList');
+  el.innerHTML = held.map(([key,t]) => {
+    const status = queueState[key] || t.decision;
+    const isResolved = status !== 'targeted' && status !== 'full';
+    const statusClass = isResolved ? (status==='approved'?'resolved-ok':'resolved-no') : status;
+    const statusLabel = isResolved ? (status==='approved'?'Approved':status==='rejected'?'Rejected':'Escalated') : (status==='full'?'Full review':'Targeted review');
+    return `<div class="queue-item${isResolved?' resolved':''}" data-tour="${key}">
+      <div class="qi-left"><div><div class="qi-title">${t.title}</div><div class="qi-meta">${t.chapters.filter(c=>c.flag).length} chapter(s) flagged${t.route.verdict==='fail'?' · route hard-failed':''}</div></div></div>
+      <div class="qi-status ${statusClass}">${statusLabel}</div>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.queue-item').forEach(item => item.addEventListener('click', () => openReviewer(item.dataset.tour)));
+}
+
+function openReviewer(key){
+  const t = TOURS[key];
+  const detail = document.getElementById('reviewerDetail');
+  let html = `<div class="tour-header"><div class="tour-title">${t.title}</div><div class="decision-pill ${DECISION_LABEL[t.decision][1]}">${DECISION_LABEL[t.decision][0]}</div></div>`;
+  if(t.route.verdict === 'fail'){
+    html += `<div class="route-block fail"><div><div class="route-label">Spatial hard fail</div><div style="margin-top:6px;font-size:14px;color:var(--coral)">${t.route.note}</div></div></div>`;
+  }
+  t.chapters.filter(c=>c.flag).forEach(ch => {
+    html += `<div class="chapter has-issue">
+      <div class="chapter-top"><span class="chapter-name">${ch.name}</span><span class="cluster-tag" style="color:${ch.flag.hard?'var(--coral)':'var(--amber)'}">${ch.flag.hard?'Hard fail':'Flagged'} · ${ch.flag.cluster}</span></div>
+      <div class="chapter-text">${ch.text.replace(ch.flag.span, `<span class="flag-span">${ch.flag.span}</span>`)}</div>
+      <div class="flag-note"><b>Reason:</b> ${ch.flag.reason}</div>
+    </div>`;
+  });
+  html += `<div class="rd-actions">
+    <button class="rd-btn primary" data-action="approved">Approve as-is</button>
+    <button class="rd-btn" data-action="edited">Edit &amp; approve</button>
+    <button class="rd-btn danger" data-action="rejected">Reject</button>
+    <button class="rd-btn warn" data-action="escalated">Escalate</button>
+  </div>`;
+  detail.innerHTML = html;
+  detail.classList.add('open');
+  detail.querySelectorAll('.rd-btn').forEach(b => b.addEventListener('click', () => {
+    queueState[key] = b.dataset.action === 'edited' ? 'approved' : b.dataset.action;
+    renderQueue();
+    detail.classList.remove('open');
+  }));
+}
+
+// ---- Live judge ----
+const RUBRIC_PROMPT = `You are evaluating a tour narration script for tone and sensitivity, as part of a content-safety gate. Apply this rubric exactly:
+PASS: no profanity, slurs, or content trivializing a sensitive/tragic subject.
+FLAG: borderline tone - a joke or casual phrasing near a sensitive topic that isn't clearly hostile but reads as tasteless.
+FAIL: slurs, discriminatory language, or content that trivializes violence, tragedy, or a protected group.
+
+Return ONLY a JSON object, no markdown fences, no other text, in this exact shape:
+{"verdict": "pass" | "flag" | "fail", "span": "the exact substring that triggered it, or empty string if pass", "reason": "one sentence explaining the verdict"}
+
+Text to evaluate:
+`;
+
+document.getElementById('liveBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('liveBtn');
+  const input = document.getElementById('liveInput').value.trim();
+  const resultEl = document.getElementById('liveResult');
+  if(!input) return;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Checking…';
+  resultEl.classList.remove('show');
+  try{
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 300,
+        messages: [{ role: "user", content: RUBRIC_PROMPT + input }]
+      })
+    });
+    const data = await response.json();
+    const raw = (data.content || []).map(b => b.text || '').join('').trim();
+    const clean = raw.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(clean);
+
+    const verdictEl = document.getElementById('liveVerdict');
+    const reasonEl = document.getElementById('liveReason');
+    const colors = { pass: 'var(--teal)', flag: 'var(--amber)', fail: 'var(--coral)' };
+    resultEl.style.borderColor = colors[parsed.verdict] || 'var(--line)';
+    verdictEl.style.color = colors[parsed.verdict] || 'var(--text)';
+    verdictEl.textContent = (parsed.verdict || 'unknown').toUpperCase() + (parsed.span ? ` — "${parsed.span}"` : '');
+    reasonEl.textContent = parsed.reason || 'No reason returned.';
+    resultEl.classList.add('show');
+  } catch(err){
+    document.getElementById('liveVerdict').textContent = 'Error';
+    document.getElementById('liveVerdict').style.color = 'var(--coral)';
+    document.getElementById('liveReason').textContent = 'The live check couldn\'t complete: ' + err.message;
+    resultEl.style.borderColor = 'var(--coral)';
+    resultEl.classList.add('show');
+  }
+  btn.disabled = false;
+  btn.textContent = 'Run check';
+});
+
+// ---- Tabs ----
+document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  tab.classList.add('active');
+  document.getElementById('view-' + tab.dataset.view).classList.add('active');
+}));
+
+renderTourPicker();
+renderTour('clean');
+renderQueue();
+</script>
+</body>
+</html>
