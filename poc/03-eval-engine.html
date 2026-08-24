@@ -261,7 +261,10 @@ async function callJudge(prompt, accessCode){
   const data = await response.json();
   if(!response.ok){
     const isAccessIssue = response.status === 403;
-    const err = new Error(data.error || 'API error');
+    const realMessage = (data.error && typeof data.error === 'object' && data.error.message)
+      ? data.error.message
+      : (typeof data.error === 'string' ? data.error : `HTTP ${response.status}`);
+    const err = new Error(realMessage);
     err.isKeyIssue = isAccessIssue;
     throw err;
   }
@@ -314,9 +317,12 @@ document.getElementById('runBtn').addEventListener('click', async () => {
     } catch(err){
       setProgress(cluster.key, 'done');
       const keyIssue = err && err.isKeyIssue;
+      const realReason = keyIssue
+        ? 'Access code was rejected — check it and try again.'
+        : `Judge call failed: ${err && err.message ? err.message : 'unknown error'}`;
       return { key: cluster.key, name: cluster.name, verdict: 'fail', span: '',
-        reason: keyIssue ? 'Access code was rejected — check it and try again.' : 'Judge call failed or returned unparseable output — failing safe to hold for review rather than silently passing.',
-        suggested_fix: '', method: keyIssue ? 'Error → access code issue' : 'Error → fail-safe' };
+        reason: realReason,
+        suggested_fix: '', method: keyIssue ? 'Error → access code issue' : 'Error → see reason above' };
     }
   }));
 
