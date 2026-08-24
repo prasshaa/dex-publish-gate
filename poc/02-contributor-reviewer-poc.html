@@ -332,11 +332,14 @@ document.getElementById('liveBtn').addEventListener('click', async () => {
     const data = await response.json();
     if(!response.ok){
       const isAccessIssue = response.status === 403;
+      const realMessage = (data.error && typeof data.error === 'object' && data.error.message)
+        ? data.error.message
+        : (typeof data.error === 'string' ? data.error : `HTTP ${response.status}`);
       document.getElementById('liveVerdict').textContent = isAccessIssue ? 'Wrong access code' : 'Error';
       document.getElementById('liveVerdict').style.color = 'var(--coral-dim)';
       document.getElementById('liveReason').textContent = isAccessIssue
         ? 'That access code was not recognized.'
-        : 'The proxy returned an error: ' + (data.error || 'unknown error.');
+        : 'The proxy returned an error: ' + realMessage;
       resultEl.style.borderColor = 'var(--coral)';
       resultEl.classList.add('show');
       btn.disabled = false;
