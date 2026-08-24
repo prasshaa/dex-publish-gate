@@ -136,6 +136,9 @@ footer p{font-size:12.5px;color:var(--muted-dim);font-family:var(--mono)}
   <div class="view" id="view-live">
     <div class="live-card">
       <div class="live-label">Cluster 1 · Language &amp; tone — live LLM judge</div>
+      <div style="margin-bottom:14px">
+        <input type="password" id="accessCodeInput" placeholder="Enter the access code to enable the live check" style="width:100%;background:var(--surface2);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:12.5px;padding:11px 14px">
+      </div>
       <textarea id="liveInput" placeholder="Write or paste a chapter of tour narration here, then run the check. Try something borderline — a joke near a sensitive topic — to see a flag, not just a clean pass.">The old fort saw a brutal siege in 1804 — but don't worry, the gift shop's much friendlier these days.</textarea>
       <div class="live-foot">
         <span class="live-hint">Sends your text to the actual Cluster 1 rubric from the design doc — this is a real model call, not a canned response.</span>
@@ -280,6 +283,9 @@ function openReviewer(key){
 }
 
 // ---- Live judge ----
+// Update this after deploying the Netlify function — see README for how to find your site's URL.
+const PROXY_URL = "https://YOUR-SITE-NAME.netlify.app/.netlify/functions/judge";
+
 const RUBRIC_PROMPT = `You are evaluating a tour narration script for tone and sensitivity, as part of a content-safety gate. Apply this rubric exactly:
 PASS: no profanity, slurs, or content trivializing a sensitive/tragic subject.
 FLAG: borderline tone - a joke or casual phrasing near a sensitive topic that isn't clearly hostile but reads as tasteless.
@@ -294,22 +300,40 @@ Text to evaluate:
 document.getElementById('liveBtn').addEventListener('click', async () => {
   const btn = document.getElementById('liveBtn');
   const input = document.getElementById('liveInput').value.trim();
+  const accessCode = document.getElementById('accessCodeInput').value.trim();
   const resultEl = document.getElementById('liveResult');
   if(!input) return;
+  if(!accessCode){
+    resultEl.style.borderColor = 'var(--coral)';
+    document.getElementById('liveVerdict').style.color = 'var(--coral)';
+    document.getElementById('liveVerdict').textContent = 'Access code needed';
+    document.getElementById('liveReason').textContent = 'Enter the access code to run the live check.';
+    resultEl.classList.add('show');
+    return;
+  }
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>Checking…';
   resultEl.classList.remove('show');
   try{
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch(PROXY_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 300,
-        messages: [{ role: "user", content: RUBRIC_PROMPT + input }]
-      })
+      body: JSON.stringify({ prompt: RUBRIC_PROMPT + input, accessCode })
     });
     const data = await response.json();
+    if(!response.ok){
+      const isAccessIssue = response.status === 403;
+      document.getElementById('liveVerdict').textContent = isAccessIssue ? 'Wrong access code' : 'Error';
+      document.getElementById('liveVerdict').style.color = 'var(--coral)';
+      document.getElementById('liveReason').textContent = isAccessIssue
+        ? 'That access code was not recognized.'
+        : 'The proxy returned an error: ' + (data.error || 'unknown error.');
+      resultEl.style.borderColor = 'var(--coral)';
+      resultEl.classList.add('show');
+      btn.disabled = false;
+      btn.textContent = 'Run check';
+      return;
+    }
     const raw = (data.content || []).map(b => b.text || '').join('').trim();
     const clean = raw.replace(/```json|```/g, '').trim();
     const parsed = JSON.parse(clean);

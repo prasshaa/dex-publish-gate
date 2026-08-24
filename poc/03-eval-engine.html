@@ -91,6 +91,9 @@ footer p{font-size:12.5px;color:var(--muted-dim);font-family:var(--mono)}
 
   <section>
     <div class="input-card">
+      <div style="margin-bottom:16px">
+        <input type="password" id="accessCodeInput" placeholder="Enter the access code to run live checks" style="width:100%;background:var(--surface2);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:12.5px;padding:11px 14px">
+      </div>
       <div class="samples" id="samples"></div>
       <textarea id="transcriptInput" placeholder="Paste a transcript or narration chapter here..."></textarea>
       <div class="run-row">
@@ -147,6 +150,9 @@ function deterministicPIICheck(text){
   if(match) return { verdict: 'fail', matched: match[0] };
   return null; // no unambiguous match — proceed to judge for nuance
 }
+
+// Update this after deploying the Netlify function — see README for how to find your site's URL.
+const PROXY_URL = "https://YOUR-SITE-NAME.netlify.app/.netlify/functions/judge";
 
 // ---- Cluster definitions: rubric + few-shot, as actual prompt text ----
 const CLUSTERS = [
@@ -231,13 +237,19 @@ ${text}`
   }
 ];
 
-async function callJudge(prompt){
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
+async function callJudge(prompt, accessCode){
+  const response = await fetch(PROXY_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 300, messages: [{ role: "user", content: prompt }] })
+    body: JSON.stringify({ prompt, accessCode })
   });
   const data = await response.json();
+  if(!response.ok){
+    const isAccessIssue = response.status === 403;
+    const err = new Error(data.error || 'API error');
+    err.isKeyIssue = isAccessIssue;
+    throw err;
+  }
   const raw = (data.content || []).map(b => b.text || '').join('').trim();
   const clean = raw.replace(/```json|```/g, '').trim();
   return JSON.parse(clean);
@@ -255,7 +267,14 @@ function setProgress(key, state){
 
 document.getElementById('runBtn').addEventListener('click', async () => {
   const text = document.getElementById('transcriptInput').value.trim();
+  const accessCode = document.getElementById('accessCodeInput').value.trim();
   if(!text) return;
+  if(!accessCode){
+    const report = document.getElementById('report');
+    report.innerHTML = `<div class="decision-banner full"><div class="db-label">Access code needed</div><div class="db-verdict">Enter the code above to run</div><div class="db-summary">Deterministic checks don't need one, but the LLM-as-judge calls go through a shared proxy that requires it.</div></div>`;
+    report.classList.add('show');
+    return;
+  }
   const btn = document.getElementById('runBtn');
   const progress = document.getElementById('progress');
   const report = document.getElementById('report');
@@ -274,12 +293,15 @@ document.getElementById('runBtn').addEventListener('click', async () => {
       }
     }
     try{
-      const verdict = await callJudge(cluster.prompt(text));
+      const verdict = await callJudge(cluster.prompt(text), accessCode);
       setProgress(cluster.key, 'done');
       return { key: cluster.key, name: cluster.name, ...verdict, method: 'LLM-as-judge' + (cluster.deterministic ? ' (deterministic pre-filter passed)' : '') };
     } catch(err){
       setProgress(cluster.key, 'done');
-      return { key: cluster.key, name: cluster.name, verdict: 'fail', span: '', reason: 'Judge call failed or returned unparseable output — failing safe to hold for review rather than silently passing.', suggested_fix: '', method: 'Error → fail-safe' };
+      const keyIssue = err && err.isKeyIssue;
+      return { key: cluster.key, name: cluster.name, verdict: 'fail', span: '',
+        reason: keyIssue ? 'Access code was rejected — check it and try again.' : 'Judge call failed or returned unparseable output — failing safe to hold for review rather than silently passing.',
+        suggested_fix: '', method: keyIssue ? 'Error → access code issue' : 'Error → fail-safe' };
     }
   }));
 

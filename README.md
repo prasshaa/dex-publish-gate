@@ -27,6 +27,10 @@ The `poc/` folder is three working, interactive builds, each one more complete t
 2. **Contributor/reviewer POC** — three views (contributor, reviewer queue, live check) showing the full human workflow around the gate
 3. **Eval engine** — paste any transcript and it runs through real deterministic pre-filters and four parallel live LLM-as-judge calls, returning an aggregate decision with reasons and suggested fixes
 
+## Running the live checks
+
+The live checks go through a small serverless proxy (`netlify/functions/judge.js`) rather than each visitor needing their own API key. The proxy holds the API key privately and is gated by an access code. See the deployment instructions provided alongside this repo for the exact setup steps. Without deploying the proxy and updating `PROXY_URL` in the two POC files, the deterministic pre-filters still run, but the LLM-as-judge calls won't.
+
 ## Scope, honestly stated
 
 This covers the transcript/narration surface only — Cluster 1 (language & tone) in full, plus the text portions of Clusters 2 and 3 (spoken PII, defamation/promotion/copyright) and Cluster 4 (opinion vs. fact). Route safety and photo-based checks are designed in the docs but not built into the POC — they need a maps API and computer vision respectively, not a language model, and are documented as open work rather than glossed over.
