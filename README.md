@@ -2,7 +2,7 @@
 
 A confidence-routing quality and safety gate for AI-generated Dex tours, designed end-to-end — from discovery on Headout's existing WalkieTalkie hackathon project through to a working evaluation engine.
 
-Built by Prathyusha Vedula as an extension of a case study proposal ("The Dex Quality Layer") submitted for an AI Product Manager role at Headout, in response to a request for proof of work beyond the original case study.
+Built by Prathyusha Vedula as an extension of a case study proposal ("The Dex Quality Layer")- a hackathon idea at Headout
 
 ## Why this exists
 
